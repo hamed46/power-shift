@@ -1,0 +1,2357 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <SDL/SDL.h>
+#include <SDL/SDL_image.h>
+#include <SDL/SDL_mixer.h>
+#include <SDL/SDL_ttf.h>
+#include "SDL/SDL_getenv.h"
+#include <stdbool.h>
+//#include <iostream>
+//#include <fstream>
+//#include <vector>
+//#include "game.h"
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+
+
+
+//define
+#define LARGEUR 800
+#define HAUTEUR 480
+
+
+
+
+int FPS = 50;    
+int NextTick , interval ;
+
+
+void FPS_Initial(void) {
+NextTick = 0 ;
+interval = 1 * 1000 / FPS ; 
+return;
+}
+
+void FPS_Fn(void) {
+if ( NextTick > SDL_GetTicks( ) ) SDL_Delay( NextTick - SDL_GetTicks( ) );
+NextTick = SDL_GetTicks( ) + interval ;
+return;
+}
+
+inline SDL_Surface *ImgLoader(char *file,bool bCKey, int r , int g , int b , int alpha)
+{
+    SDL_Surface *pic;
+    pic = IMG_Load(file); 
+    if(pic==NULL) fprintf(stderr,"Missing image %s : %s\n",file,IMG_GetError());
+    if( bCKey ) {
+       SDL_SetColorKey(pic,SDL_SRCCOLORKEY|SDL_RLEACCEL,SDL_MapRGB(pic->format,r,g,b));
+         }
+    if(alpha) SDL_SetAlpha(pic, SDL_SRCALPHA|SDL_RLEACCEL , 255 - alpha);
+
+    pic = SDL_DisplayFormat(pic);
+    return (pic);
+}
+
+
+/*inline SDL_Surface *ImgLoader(char *file)       
+                { return ImgLoader(file,1,0,0,0,0) ; }*/
+/*inline SDL_Surface *ImgLoader(char *file,bool bCKey)
+                { return ImgLoader(file,1,255,255,255,0) ; }*/
+
+ 
+ 
+bool collision(SDL_Rect* rect1,SDL_Rect* rect2)
+{
+        if(rect1->y >= rect2->y + rect2->h)
+                return 0;
+        if(rect1->x >= rect2->x + rect2->w)
+                return 0;
+        if(rect1->y + rect1->h <= rect2->y)
+                return 0;
+        if(rect1->x + rect1->w <= rect2->x)
+                return 0;
+        return 1;
+}
+
+
+ void blitz(SDL_Surface* screen,SDL_Surface* chaos,SDL_Rect* rec)
+ { 
+
+			SDL_BlitSurface(chaos,NULL,screen,&*rec);  
+			SDL_Flip(screen); 
+            SDL_Delay(800);
+			SDL_FreeSurface(chaos);			   			                 
+}
+
+ int blitzscroll(int q,SDL_Surface* screen,SDL_Surface* chaos,SDL_Rect* rec)
+ {   
+    
+	switch(q)
+	{
+	 case 0: chaos = IMG_Load("weapon menu/vide.png");
+     break;
+     case 1: chaos = IMG_Load("weapon menu/1.png");
+     break;
+     case 2: chaos = IMG_Load("weapon menu/2.png");
+     break;
+     case 3: chaos = IMG_Load("weapon menu/3.png");
+     break;
+     case 4: chaos = IMG_Load("weapon menu/4.png");
+     break;
+     case 5: chaos = IMG_Load("weapon menu/5.png");
+     break;
+    }  
+    if(q < 0)
+    {
+		q = 5;
+	}
+	else if (q > 5)
+	{
+		q = 0;
+	}
+	
+	blitz(screen,chaos,&*rec);
+    
+    return q;
+ }
+
+SDL_Surface* volume(SDL_Surface* screen,SDL_Surface* chaos,SDL_Rect* rec,int *e)
+{
+ switch(*e)
+  {
+   case 0: chaos= IMG_Load("./assets/images/volumeindicator/0.png");
+   break;
+   case 1: chaos= IMG_Load("./assets/images/volumeindicator/10.png");
+   break;
+   case 2: chaos= IMG_Load("./assets/images/volumeindicator/20.png");
+   break;
+   case 3: chaos= IMG_Load("./assets/images/volumeindicator/30.png");
+   break;
+   case 4: chaos= IMG_Load("./assets/images/volumeindicator/40.png");
+   break;
+   case 5: chaos= IMG_Load("./assets/images/volumeindicator/50.png");
+   break;
+   case 6: chaos= IMG_Load("./assets/images/volumeindicator/60.png");
+   break;
+   case 7: chaos= IMG_Load("./assets/images/volumeindicator/70.png");
+   break;
+   case 8: chaos= IMG_Load("./assets/images/volumeindicator/80.png");
+   break;
+   case 9: chaos= IMG_Load("./assets/images/volumeindicator/90.png");
+   break;
+   case 10: chaos= IMG_Load("./assets/images/volumeindicator/100.png");
+   break;
+  }
+  
+  
+   return chaos;
+}
+
+ 
+ 
+int width = 640;
+int height = 480;
+ 
+ 
+ void drawText(SDL_Surface* screen, char* string,int size, int x, int y,int fR, int fG, int fB,int bR, int bG, int bB)
+{
+
+TTF_Font* font = TTF_OpenFont("BlackOpsOne-Regular.ttf", size);
+
+SDL_Color foregroundColor = { fR, fG, fB };
+SDL_Color backgroundColor = { bR, bG, bB };
+
+SDL_Surface* textSurface
+= TTF_RenderText_Shaded
+(font, string, foregroundColor, backgroundColor);
+
+SDL_Rect textLocation = { x, y, 0, 0 };
+
+SDL_BlitSurface(textSurface, NULL, screen, &textLocation);
+
+SDL_FreeSurface(textSurface);
+
+TTF_CloseFont(font);
+
+}
+ 
+
+
+//variables
+SDL_Surface * screen=NULL;
+SDL_Surface * ecran=NULL;
+SDL_Surface * chaos=NULL;
+SDL_Event event={0};
+
+SDL_Surface* menu=NULL;
+SDL_Rect menu_rect={0,0,0,0};
+SDL_Rect rec={0,0,0,0};
+SDL_Rect position;
+SDL_Rect positiontext ;
+
+SDL_Surface *texte;
+
+	
+	
+//********
+int main(int argc, char *argv[])
+{
+	Uint32 color1=0;
+	int running=1;
+	
+	int now=0;
+	int ex=0;
+	int periodeFps=33; //33ms soit fps=30 imag/s
+	int dt=0;
+	int c=0;
+	int d=0;
+	int e=5;
+	int a=0;
+	int q=0;
+	int o=0;
+	int d1=0;
+	int vol=MIX_MAX_VOLUME/2;
+	float delta_s=0;
+	TTF_Font *police, *police1;
+	SDL_Color couleurnoir= {0,0,0} ,couleurblanche = {255,255,255} ,couleurrouge = {255,0,0};
+	TTF_Font *policeBIG =NULL;
+	
+	SDL_Rect rect;
+	rect.x=10;
+	rect.y=10;
+	rect.w=20;
+	rect.h=20;
+	
+    rec.x = 10;
+    rec.y = 10;
+    rec.w = 20;
+    rec.h = 20;   
+
+	
+
+ 
+	
+	
+	/*if(TTF_Init() < 0)
+	{
+		std::cout<< "Error: " << TTF_GetError() << std::endl;
+	}*/
+	
+	TTF_Font *font = TTF_OpenFont("BlackOpsOne-Regular.ttf", 20);
+	SDL_Color color = { 144, 77, 255, 255 };
+/*	SDL_Texture *text = SDL_CreateTextureFromSurface(renderTarget, textSurface);
+*/
+
+
+    TTF_Init();
+    police = TTF_OpenFont("BlackOpsOne-Regular.ttf",35);
+    policeBIG = TTF_OpenFont("BlackOpsOne-Regular.ttf",50);
+    police1 = TTF_OpenFont("SFOuterLimits.ttf",50);
+
+
+	SDL_Surface *windowSurface = NULL;
+	SDL_Surface *image1 = NULL; 
+	SDL_Surface *image2 = NULL; 
+	SDL_Surface *image3 = NULL;
+	SDL_Surface *currentImage = NULL;
+	
+	//init
+	SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO);
+	
+	
+	
+	
+	
+	//init sound
+	Mix_Music *music;
+	Mix_Chunk *Beeps1;
+	Mix_Chunk *mu;
+	Mix_Chunk *mu1;
+	Mix_Chunk *mu2;
+	Mix_Chunk *mu3;
+	Mix_Chunk *mu4;
+	Mix_Chunk *mu5;
+	Mix_Chunk *mu6;
+	Mix_Chunk *mu7;
+	//Mix_AllocateChannels(20);
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 2048);
+	music=Mix_LoadMUS("21 Building Recon - Intro - Showdown.mp3");
+	Beeps1 = Mix_LoadWAV("button1.wav");
+	mu=Mix_LoadWAV("Ring stage tranfer.wav");
+	Mix_PlayMusic(music, -1);
+	Mix_VolumeMusic(MIX_MAX_VOLUME / 1);
+	//Mix_Volume(1,vol);
+	
+	if(Mix_OpenAudio(44100,MIX_DEFAULT_FORMAT, 2, 2048) < 0)
+	{
+		printf("%s",Mix_GetError());
+	}	
+
+   
+	
+
+	 
+	const SDL_VideoInfo* pinfo=SDL_GetVideoInfo();
+	int ecran_w=pinfo->current_w;
+	int ecran_h=pinfo->current_h;
+	int bpp=pinfo->vfmt->BitsPerPixel;
+	
+	printf("ecran_w= %d, ecran_h= %d, bpp= %d \n",ecran_w,ecran_h,bpp);
+	
+	//
+	screen=SDL_SetVideoMode(LARGEUR,HAUTEUR,bpp,SDL_SWSURFACE|SDL_FULLSCREEN);
+	SDL_WM_SetCaption("Canyon",NULL);
+	
+	//color
+	
+	color1=SDL_MapRGB(screen->format,0,255,0); //rgb
+	
+	//paysage
+	SDL_Surface* tmp=NULL;
+    SDL_WM_SetCaption("Power Shift" , NULL);
+
+
+	
+		
+	
+	tmp=IMG_Load("./assets/images/MENU6.png");
+	
+	
+	menu=SDL_DisplayFormatAlpha(tmp);
+	
+    SDL_FreeSurface(tmp);
+	
+	SDL_GetClipRect(menu,& menu_rect);
+	
+	
+	printf("x=%d, y=%d, w=%d, h=%d \n",menu_rect.x,menu_rect.y,menu_rect.w,menu_rect.h);
+		
+
+
+
+
+/*
+if(o == 1)
+{
+int pewd1 = 0 , bTick= 0;
+	enum title { just0 , just1 , just2 , just3 , just4 , just5 , just6 , just7 , just8 , justNo1 };
+	SDL_Surface *animtitle[justNo1];
+	SDL_Rect titl = {214,88,386,88};
+	
+	animtitle[0] = ImgLoader("TITLE EFFECT/t1.gif",1,255,255,255,0);
+	animtitle[1] = ImgLoader("TITLE EFFECT/t2.gif",1,255,255,255,0);
+	animtitle[2] = ImgLoader("TITLE EFFECT/t3.gif",1,255,255,255,0);
+	animtitle[3] = ImgLoader("TITLE EFFECT/t4.gif",1,255,255,255,0);
+	animtitle[4] = ImgLoader("TITLE EFFECT/t5.gif",1,255,255,255,0);
+	animtitle[5] = ImgLoader("TITLE EFFECT/t4.gif",1,255,255,255,0);
+	animtitle[6] = ImgLoader("TITLE EFFECT/t3.gif",1,255,255,255,0);
+	animtitle[7] = ImgLoader("TITLE EFFECT/t2.gif",1,255,255,255,0);
+	animtitle[8] = ImgLoader("TITLE EFFECT/t1.gif",1,255,255,255,0);
+
+	bTick++;
+                
+                FPS_Fn();
+                if( bTick%10 == 0 ) pewd1++; 
+	            if(pewd1 >= justNo1) pewd1 = 0;
+	
+	SDL_BlitSurface(animtitle[pewd1],NULL,screen,&titl);
+	SDL_Flip(screen);  
+}*/
+
+
+
+
+
+          
+	//images.bmp
+	
+	if(c == 6)
+	{
+		tmp=IMG_Load("./assets/images/MENU7.png");
+	
+	
+	menu=SDL_DisplayFormatAlpha(tmp);
+	}
+	
+	bool isRunning = true;
+	SDL_Event ev;
+	
+	//boucle
+	while(running)
+	{
+		
+
+	now=SDL_GetTicks();
+	
+	
+	dt=now -ex;
+	
+	int x;
+    int y;
+	//Last right here.
+	
+  while(SDL_PollEvent(&event))
+	{
+	   switch(event.type)
+	   {
+		   case SDL_QUIT:
+		     running=false;
+		     break;
+		   case SDL_MOUSEMOTION:	     
+		     x = event.motion.x;     
+		     y = event.motion.y;
+		     
+	   if((x>=347 && x<=460) && (y>=420 && y<=462))
+		   {
+			   char string;
+	int size, x, y, fR,  fG,  fB, bR,  bG,  bB;
+
+			   tmp=IMG_Load("./assets/images/MENU8.png");
+		
+	menu=SDL_DisplayFormatAlpha(tmp);
+           
+           c=5;
+           texte=TTF_RenderText_Blended(police,"THAT'S IT THEN...",couleurblanche);
+                     positiontext.x = 10;
+                     positiontext.y = 437;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);
+		   }
+		   else if((x>=347 && x<=460) && (y>=113 && y<=157))
+		   {
+			   tmp=IMG_Load("./assets/images/MENU10.png");
+		
+	menu=SDL_DisplayFormatAlpha(tmp);
+	
+	       c=1;
+	       texte=TTF_RenderText_Blended(police,"PLAY IT!!!!",couleurblanche);
+                     positiontext.x = 500;
+                     positiontext.y = 110;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);
+		   }
+		   else if((x>=347 && x<=460) && (y>=188 && y<=234))
+		   {
+			   tmp=IMG_Load("./assets/images/MENU12.png");
+		
+	menu=SDL_DisplayFormatAlpha(tmp);
+	
+	       c=2;
+	       texte=TTF_RenderText_Blended(police,"ARMS UP!",couleurblanche);
+                     positiontext.x = 10;
+                     positiontext.y = 210;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);
+		   }
+		   else if((x>=347 && x<=460) && (y>=271 && y<=312))
+		   {
+			   tmp=IMG_Load("./assets/images/MENU13.png");
+		
+	menu=SDL_DisplayFormatAlpha(tmp);
+	
+	       c=3;
+	       texte=TTF_RenderText_Blended(police,"TAKE CONTROL?",couleurblanche);
+                     positiontext.x = 10;
+                     positiontext.y = 280;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);                                          
+		   }
+		   else if((x>=347 && x<=460) && (y>=347 && y<=389))
+		   {
+			   tmp=IMG_Load("./assets/images/MENU14.png");
+		
+	menu=SDL_DisplayFormatAlpha(tmp);
+	
+		   c=4;
+		   texte=TTF_RenderText_Blended(police,"FOR WHO CARES-_-",couleurblanche);
+                     positiontext.x = 10;
+                     positiontext.y = 370;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);
+		   }
+		   
+	         break;
+	    }     
+	       if(event.type == SDL_KEYDOWN)
+	       {
+	       switch(event.key.keysym.sym)
+	       {
+			   case SDLK_p:
+			   if(!Mix_PlayingMusic())
+			       Mix_PlayMusic(music, -1);
+		  else if(Mix_PausedMusic())
+		      Mix_ResumeMusic();
+		  else
+		      Mix_PauseMusic();
+		      
+		       break;
+	           case SDLK_s:
+	               Mix_HaltMusic();
+	           break;
+	           
+	           case SDLK_g:   
+	   	       Mix_PlayChannel(-1, Beeps1, 0);
+	   	        if(Mix_PlayChannel(-1, Beeps1, 0)==-1) {
+    printf("Mix_PlayChannel: %s\n",Mix_GetError());
+    }
+               break;
+               case SDLK_o:
+               o=1;
+               break;
+               case SDLK_F4:
+screen=SDL_SetVideoMode(LARGEUR,HAUTEUR,bpp,SDL_SWSURFACE|SDL_FULLSCREEN);               
+               break;
+               case SDLK_F5:
+screen=SDL_SetVideoMode(LARGEUR,HAUTEUR,bpp,SDL_SWSURFACE);               
+               break;
+               case SDLK_F11:
+               vol -=13;
+               if(vol < 0)
+               {
+			   vol=0;
+			   }
+               Mix_VolumeMusic(vol);
+               printf("%d. \n",Mix_VolumeMusic(vol));
+               
+                  e--;
+                if(e > 10)
+  {
+	  e=10;
+  }
+  else if(e < 0)
+  {
+	  e=0;
+  }
+  
+                Beeps1 = Mix_LoadWAV("button2.wav");
+	            Mix_PlayChannel(-1, Beeps1, 0);
+                rec.x=-290;
+                rec.y=-290; 
+                chaos = volume(screen,chaos,&rec,&e);
+                blitz(screen,chaos,&rec);
+               break;
+               case SDLK_F12:               
+                vol +=13;
+                if(vol > 128)
+                {
+				vol=128;
+				}
+                Mix_VolumeMusic(vol);
+                printf("%d. \n",Mix_VolumeMusic(vol));
+                e++;
+                if(e > 10)
+  {
+	  e=10;
+  }
+  else if(e < 0)
+  {
+	  e=0;
+  }
+                Beeps1 = Mix_LoadWAV("button2.wav");
+	            Mix_PlayChannel(-1, Beeps1, 0);
+                rec.x=-290;
+                rec.y=-290; 
+                chaos = volume(screen,chaos,&rec,&e);
+                blitz(screen,chaos,&rec);
+               break;
+               case SDLK_f: 
+           chaos = IMG_Load("siblings.png");                
+			rec.x=-20;
+            rec.y=-20;   
+           blitz(screen,chaos,&rec);	   	   			                 
+               break;                                           
+               case SDLK_KP_ENTER:
+               if(c == 5)
+               {
+		       tmp=IMG_Load("./assets/images/MENU7.png");
+		
+	           menu=SDL_DisplayFormatAlpha(tmp);
+	           Beeps1 = Mix_LoadWAV("button2.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0);
+	           c++;
+	           a=1;			   	   	    
+			   }
+			   else if(c == 4)
+			   {
+			   tmp=IMG_Load("./assets/images/logo_size_fixed.png");
+		
+	           menu=SDL_DisplayFormatAlpha(tmp);
+	           Beeps1 = Mix_LoadWAV("button2.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0);
+			   }
+			   else if(c == 3)
+			   {
+			   tmp=IMG_Load("./assets/images/MENU15.png");
+				
+	           menu=SDL_DisplayFormatAlpha(tmp);
+	           Beeps1 = Mix_LoadWAV("button2.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0);																																										
+		       }
+		       else if(c == 7)
+		       {
+				   SDL_Quit();
+			   }
+			   else if (c == 1)
+			   {
+	            c = 8;
+	         if(c == 8){
+	            SDL_Surface *screen, *background, *score, *scorep, *obj, *hud, *weapon, *enigme1, *enigme2;
+                SDL_Surface *eng1, *eng2, *eng3, *eng4, *eng5, *eng6, *eng7, *eng8, *eng9, *eng10, *eng11, *eng12, *eng13, *eng14, *eng15;
+        screen = SDL_SetVideoMode(width, height, 32, SDL_SWSURFACE);
+ //     screen = SDL_SetVideoMode(640, 480, 32, SDL_SWSURFACE|SDL_FULLSCREEN);
+        bool running=true;
+        const int FPS = 30;
+        Uint32 start;
+        const int speed = 5;
+        bool jump,ground;
+        int acceleration=0;
+        int altitude=0;
+        int j=0;
+        int x,y;
+        x = 0;
+        y = 0;
+        int u=0;
+        int i;
+        i = 0;
+        char scorech[6];
+	    int a=0;
+	    int t=0;
+	    int k=0;
+	    int q=0;
+	    int u1=0;
+	    int u2=0;
+	    int u3=1;
+	    int ut=0;
+	    int ue=0;
+	    int z=0;
+	    int z1=0;
+	    int continue0=0;
+	    int enig=0;
+	    int answer=0;
+        background = SDL_LoadBMP("backgroundbig.bmp");
+        score = IMG_Load("money.png");
+        obj = IMG_Load("ground obstacle.png");
+        scorep = IMG_Load("x.png");
+        hud = IMG_Load("score.png");
+        weapon = IMG_Load("weapon menu/vide.png");
+        enigme1 = IMG_Load("enigme questions/enigme-screen-NATO.png");
+        enigme2 = IMG_Load("enigme questions/enigme-screen-USSR.png");
+        SDL_Rect imgloc;
+        imgloc.x =30;
+        imgloc.y =335;
+        imgloc.w =73;
+        imgloc.h =85;
+        SDL_Rect camera;
+        camera.x = 0;
+        camera.y = 0;
+        camera.w = 640;
+        camera.h = 480;
+        bool b[4] = {0,0,0,0};
+        SDL_Rect rec;
+        rec.x =820;
+        rec.y =300;
+        rec.w =34;
+        rec.h =35;
+        SDL_Rect huds;
+        huds.x = 350;
+        huds.y = -20;
+        huds.w = 0;
+        huds.h = 0;
+        SDL_Rect scorer;
+        scorer.x = 10;
+        scorer.y = 20;
+        scorer.w = 0;
+        scorer.h = 0;
+        SDL_Rect fire;
+        fire.x = 70;
+        fire.y = -80;
+        fire.w = 0;
+        fire.h = 0;
+        int recorig=5100;//rec.x + imgloc.x;
+        int recstwatch=4015;
+        SDL_Rect weap;
+        weap.x = 380;
+        weap.y = 280;
+        weap.w = 0;
+        weap.h = 0;
+        int recsx= 800;
+        int recsy= 270;
+        int recsw= 38;
+        int recsh= 35;
+        int enemsx= 1100;
+        int enemsy= 335;
+        int enemsw= 97;
+        int enemsh= 111;
+        int engbige=1400;
+        SDL_Rect rect1;
+        rect1.x =30;
+        rect1.y =335;
+        rect1.w =73;
+        rect1.h =85;      
+        SDL_Rect rect2; 
+        rect2.x = 820;
+        rect2.y = 280;
+        rect2.w = 34;
+        rect2.h = 35;
+        SDL_Rect enem;
+        enem.x = 1100;
+        enem.y = 335;
+        enem.w = 97;
+        enem.h = 111;
+        int enemori=0;
+        int enemyx=0;
+        SDL_Rect imgloc1;
+        imgloc1.x =33;
+        imgloc1.y =335;
+        imgloc1.w =73;
+        imgloc1.h =85;
+        SDL_Rect recenig;
+        recenig.x = 0;
+        recenig.y = 0;
+        recenig.w = 400;
+        recenig.h = 400;
+        
+        
+        
+                
+                
+                                   
+        SDL_Event event;
+        bool bRun = 1;
+        int pidx = 0 ,pidx1 = 0 ,pidx2 = 0 ,pidx3 = 0 ,pidx4 = 0 ,pidx5 = 0 ,pidx6 = 0 ,pidx7 = 0 ,pidx8 = 0 ,pidx9 = 0 ,pidx10 = 0 ,pidx11 = 0 ,pidx12 = 0 ,pidx13 = 0 ,aTick = 0;
+        enum stand { justice1 , justice2 , justice3 , justice4 
+        , justice5 , justice_No  };
+        enum walk { justice6 , justice7 , justice8 , justice9 
+        , justice10 , justice11 , justice12 , justice13 , justice_No1  };
+        enum stop { justice14 , justice15 , justice16 
+        , justice17 , justice18 , justice_No2  };      
+        enum down { justice95 , justice96 , justice97 , justice_No9  };      
+        enum damage { justice98 , justice99 , justice100 , justice101 , justice102 , justice103 , justice104 , justice105 , justice106 , justice_No10  };      
+        enum score { justice39 , justice40 , justice41 
+        , justice42 , justice_No3  };      
+        enum hud { justice19 , justice20 , justice21
+        , justice22 , justice23 , justice24 , justice25 , justice26 , justice27 , justice28 , justice29 , justice30 , justice31 ,
+         justice66 , justice67 , justice68 , justice69 , justice70 , justice71 , justice72 , justice73 , justice74 , justice75 , justice76 ,
+          justice77 , justice78 , justice79 , justice80 , justice81 , justice82 , justice83 , justice84 , justice85 , justice86 , justice87 ,
+           justice88 , justice89 , justice90 , justice91 , justice92 , justice93 , justice94 , justice_No4  };
+        enum jump { justice33 , justice34 , justice35 
+        , justice36 , justice37 , justice38 , justice_No5  };
+        enum victory { justice43 , justice_No6  };
+        enum enemyrun { justice44 , justice45 , justice46 
+        , justice47 , justice48 , justice49 , justice50 , justice51 , justice52 , justice53 , justice54 , justice_No7  };
+        enum enemyruninv { justice55 , justice56 , justice57 
+        , justice58 , justice59 , justice60 , justice61 , justice62 , justice63 , justice64 , justice65 , justice_No8  };
+        enum hudenergy { justice107 , justice108 , justice109
+        , justice110 , justice111 , justice112 , justice113 , justice114 , justice115 , justice116 , justice117 , justice118 , justice120 ,
+         justice121 , justice122 , justice123 , justice124 , justice125 , justice126 , justice127 , justice128 , justice129 , justice130 , justice131 ,
+          justice132 , justice133 , justice134 , justice135 , justice136 , justice137 , justice138 , justice139 , justice140 , justice141 , justice142 ,
+           justice143 , justice144 , justice145 , justice146 , justice147 , justice148 , justice149 , justice150 , justice_No11  };  
+        enum atk { justice151 , justice152 , justice153 , justice_No12  };   
+        enum enter { justice154 , justice155 , justice156 , justice157 , justice158 , justice159 , justice160 , justice161 , justice162 , justice163 , justice164 , justice165 , justice166 , justice_No13 }; //166 13
+        SDL_Surface *anim[justice_No], *anim0[justice_No], *anim1[justice_No1], *anim2[justice_No2], *animscore[justice_No3], *animhud[justice_No4], *animjump[justice_No5], *animvictory[justice_No6], *animenemyrun[justice_No7], *animenemyrun1[justice_No7], *animenemyrun2[justice_No8], *animdefeat[justice_No6], *animdown[justice_No9], *animdamage[justice_No10]/*, *animaura0[justice_No3], *animaura[justice_No3]*/, *animhudene[justice_No11], *animatk[justice_No12], *animatk0[justice_No12], *animstop[justice_No6], *animenter[justice_No13];
+        SDL_Rect animRect ;
+        animRect.x = 160 ;
+        animRect.y = 0 ;
+        
+        anim[pidx]=anim0[pidx];
+        animenemyrun[pidx7]=animenemyrun1[pidx7];
+      //  animaura[pidx3] = NULL;
+        animatk[pidx12]=animatk0[pidx12];
+        
+        
+        anim0[0] = ImgLoader("animation/1.gif",1,255,255,255,0);
+        anim0[1] = ImgLoader("animation/2.gif",1,255,255,255,0);
+        anim0[2] = ImgLoader("animation/3.gif",1,255,255,255,0);
+        anim0[3] = ImgLoader("animation/4.gif",1,255,255,255,0);
+        anim0[4] = ImgLoader("animation/5.gif",1,255,255,255,0);
+        anim1[0] = ImgLoader("animation/6.gif",1,255,255,255,0);
+        anim1[1] = ImgLoader("animation/7.gif",1,255,255,255,0);
+        anim1[2] = ImgLoader("animation/8.gif",1,255,255,255,0);
+        anim1[3] = ImgLoader("animation/9.gif",1,255,255,255,0);
+        anim1[4] = ImgLoader("animation/10.gif",1,255,255,255,0);
+        anim1[5] = ImgLoader("animation/11.gif",1,255,255,255,0);
+        anim1[6] = ImgLoader("animation/12.gif",1,255,255,255,0);
+        anim1[7] = ImgLoader("animation/13.gif",1,255,255,255,0);
+        anim2[0] = ImgLoader("animation/14.gif",1,255,255,255,0);
+        anim2[1] = ImgLoader("animation/15.gif",1,255,255,255,0);
+        anim2[2] = ImgLoader("animation/16.gif",1,255,255,255,0);
+        anim2[3] = ImgLoader("animation/17.gif",1,255,255,255,0);
+        anim2[4] = ImgLoader("animation/18.gif",1,255,255,255,0);
+        animscore[0] = ImgLoader("animscore/1.gif",1,255,255,255,0);
+        animscore[1] = ImgLoader("animscore/2.gif",1,255,255,255,0);
+        animscore[2] = ImgLoader("animscore/3.gif",1,255,255,255,0);
+        animscore[3] = ImgLoader("animscore/4.gif",1,255,255,255,0);       
+        animhud[0] = ImgLoader("hud animation/1.gif",1,255,255,255,0);
+        animhud[1] = ImgLoader("hud animation/2.gif",1,255,255,255,0);
+        animhud[2] = ImgLoader("hud animation/3.gif",1,255,255,255,0);
+        animhud[3] = ImgLoader("hud animation/4.gif",1,255,255,255,0);
+        animhud[4] = ImgLoader("hud animation/5.gif",1,255,255,255,0);
+        animhud[5] = ImgLoader("hud animation/6.gif",1,255,255,255,0);
+        animhud[6] = ImgLoader("hud animation/7.gif",1,255,255,255,0);
+        animhud[7] = ImgLoader("hud animation/8.gif",1,255,255,255,0);
+        animhud[8] = ImgLoader("hud animation/9.gif",1,255,255,255,0);
+        animhud[9] = ImgLoader("hud animation/10.gif",1,255,255,255,0);
+        animhud[10] = ImgLoader("hud animation/11.gif",1,255,255,255,0);
+        animhud[11] = ImgLoader("hud animation/12.gif",1,255,255,255,0);
+        animhud[12] = ImgLoader("hud animation/13.gif",1,255,255,255,0);
+        animhud[13] = ImgLoader("hud animation/14.gif",1,255,255,255,0);
+        animhud[14] = ImgLoader("hud animation/15.gif",1,255,255,255,0);
+        animhud[15] = ImgLoader("hud animation/16.gif",1,255,255,255,0);
+        animhud[16] = ImgLoader("hud animation/17.gif",1,255,255,255,0);
+        animhud[17] = ImgLoader("hud animation/18.gif",1,255,255,255,0);
+        animhud[18] = ImgLoader("hud animation/19.gif",1,255,255,255,0);
+        animhud[19] = ImgLoader("hud animation/20.gif",1,255,255,255,0);
+        animhud[20] = ImgLoader("hud animation/21.gif",1,255,255,255,0);
+        animhud[21] = ImgLoader("hud animation/22.gif",1,255,255,255,0);
+        animhud[22] = ImgLoader("hud animation/23.gif",1,255,255,255,0);
+        animhud[23] = ImgLoader("hud animation/24.gif",1,255,255,255,0);
+        animhud[24] = ImgLoader("hud animation/25.gif",1,255,255,255,0);
+        animhud[25] = ImgLoader("hud animation/26.gif",1,255,255,255,0);
+        animhud[26] = ImgLoader("hud animation/27.gif",1,255,255,255,0);
+        animhud[27] = ImgLoader("hud animation/28.gif",1,255,255,255,0);
+        animhud[28] = ImgLoader("hud animation/29.gif",1,255,255,255,0);
+        animhud[29] = ImgLoader("hud animation/30.gif",1,255,255,255,0);
+        animhud[30] = ImgLoader("hud animation/31.gif",1,255,255,255,0);
+        animhud[31] = ImgLoader("hud animation/32.gif",1,255,255,255,0);
+        animhud[32] = ImgLoader("hud animation/33.gif",1,255,255,255,0);
+        animhud[33] = ImgLoader("hud animation/34.gif",1,255,255,255,0);
+        animhud[34] = ImgLoader("hud animation/35.gif",1,255,255,255,0);
+        animhud[35] = ImgLoader("hud animation/36.gif",1,255,255,255,0);
+        animhud[36] = ImgLoader("hud animation/37.gif",1,255,255,255,0);
+        animhud[37] = ImgLoader("hud animation/38.gif",1,255,255,255,0);
+        animhud[38] = ImgLoader("hud animation/39.gif",1,255,255,255,0);
+        animhud[39] = ImgLoader("hud animation/40.gif",1,255,255,255,0);
+        animhud[40] = ImgLoader("hud animation/41.gif",1,255,255,255,0);
+        animjump[0] = ImgLoader("animation/20.gif",1,255,255,255,0);
+        animjump[1] = ImgLoader("animation/21.gif",1,255,255,255,0);
+        animjump[2] = ImgLoader("animation/22.gif",1,255,255,255,0);
+        animjump[3] = ImgLoader("animation/23.gif",1,255,255,255,0);
+        animjump[4] = ImgLoader("animation/24.gif",1,255,255,255,0);
+        animjump[5] = ImgLoader("animation/25.gif",1,255,255,255,0);
+        animvictory[0] = ImgLoader("animation/0.gif",1,255,255,255,0);
+        animenemyrun[0] = ImgLoader("animation enemy/2.gif",1,255,255,255,0);
+        animenemyrun[1] = ImgLoader("animation enemy/3.gif",1,255,255,255,0);
+        animenemyrun[2] = ImgLoader("animation enemy/4.gif",1,255,255,255,0);
+        animenemyrun[3] = ImgLoader("animation enemy/5.gif",1,255,255,255,0);
+        animenemyrun[4] = ImgLoader("animation enemy/6.gif",1,255,255,255,0);
+        animenemyrun[5] = ImgLoader("animation enemy/7.gif",1,255,255,255,0);
+        animenemyrun[6] = ImgLoader("animation enemy/8.gif",1,255,255,255,0);
+        animenemyrun[7] = ImgLoader("animation enemy/9.gif",1,255,255,255,0);
+        animenemyrun[8] = ImgLoader("animation enemy/10.gif",1,255,255,255,0);
+        animenemyrun[9] = ImgLoader("animation enemy/11.gif",1,255,255,255,0);
+        animenemyrun[10] = ImgLoader("animation enemy/12.gif",1,255,255,255,0);
+        animenemyrun2[0] = ImgLoader("animation enemy/13.gif",1,255,255,255,0);
+        animenemyrun2[1] = ImgLoader("animation enemy/14.gif",1,255,255,255,0);
+        animenemyrun2[2] = ImgLoader("animation enemy/15.gif",1,255,255,255,0);
+        animenemyrun2[3] = ImgLoader("animation enemy/16.gif",1,255,255,255,0);
+        animenemyrun2[4] = ImgLoader("animation enemy/17.gif",1,255,255,255,0);
+        animenemyrun2[5] = ImgLoader("animation enemy/18.gif",1,255,255,255,0);
+        animenemyrun2[6] = ImgLoader("animation enemy/19.gif",1,255,255,255,0);
+        animenemyrun2[7] = ImgLoader("animation enemy/20.gif",1,255,255,255,0);
+        animenemyrun2[8] = ImgLoader("animation enemy/21.gif",1,255,255,255,0);
+        animenemyrun2[9] = ImgLoader("animation enemy/22.gif",1,255,255,255,0);
+        animenemyrun2[10] = ImgLoader("animation enemy/23.gif",1,255,255,255,0);
+        animdefeat[0] = ImgLoader("animation/31.gif",1,255,255,255,0);
+        animdown[0] = ImgLoader("animation/32.gif",1,255,255,255,0);
+        animdown[1] = ImgLoader("animation/33.gif",1,255,255,255,0);
+        animdown[2] = ImgLoader("animation/34.gif",1,255,255,255,0);
+        animdamage[0] = ImgLoader("animation/35.gif",1,255,255,255,0);
+        animdamage[1] = ImgLoader("animation/36.gif",1,255,255,255,0);
+        animdamage[2] = ImgLoader("animation/37.gif",1,255,255,255,0);
+        animdamage[3] = ImgLoader("animation/38.gif",1,255,255,255,0);
+        animdamage[4] = ImgLoader("animation/39.gif",1,255,255,255,0);
+        animdamage[5] = ImgLoader("animation/40.gif",1,255,255,255,0);
+        animdamage[6] = ImgLoader("animation/41.gif",1,255,255,255,0);
+        animdamage[7] = ImgLoader("animation/42.gif",1,255,255,255,0);
+        animdamage[8] = ImgLoader("animation/43.gif",1,255,255,255,0);
+     /*   animaura0[0] = ImgLoader("aura/aura1.gif",1,255,255,255,0);
+        animaura0[1] = ImgLoader("aura/aura2.gif",1,255,255,255,0);
+        animaura0[2] = ImgLoader("aura/aura3.gif",1,255,255,255,0);
+        animaura0[3] = ImgLoader("aura/aura4.gif",1,255,255,255,0);
+      */  animhudene[0] = ImgLoader("hud animation/E0.gif",1,255,255,255,0);
+        animhudene[1] = ImgLoader("hud animation/E1.gif",1,255,255,255,0);
+        animhudene[2] = ImgLoader("hud animation/E2.gif",1,255,255,255,0);
+        animhudene[3] = ImgLoader("hud animation/E3.gif",1,255,255,255,0);
+        animhudene[4] = ImgLoader("hud animation/E4.gif",1,255,255,255,0);
+        animhudene[5] = ImgLoader("hud animation/E5.gif",1,255,255,255,0);
+        animhudene[6] = ImgLoader("hud animation/E6.gif",1,255,255,255,0);
+        animhudene[7] = ImgLoader("hud animation/E7.gif",1,255,255,255,0);
+        animhudene[8] = ImgLoader("hud animation/E8.gif",1,255,255,255,0);
+        animhudene[9] = ImgLoader("hud animation/E9.gif",1,255,255,255,0);
+        animhudene[10] = ImgLoader("hud animation/E10.gif",1,255,255,255,0);
+        animhudene[11] = ImgLoader("hud animation/E11.gif",1,255,255,255,0);
+        animhudene[12] = ImgLoader("hud animation/E12.gif",1,255,255,255,0);
+        animhudene[13] = ImgLoader("hud animation/E13.gif",1,255,255,255,0);
+        animhudene[14] = ImgLoader("hud animation/E14.gif",1,255,255,255,0);
+        animhudene[15] = ImgLoader("hud animation/E15.gif",1,255,255,255,0);
+        animhudene[16] = ImgLoader("hud animation/E16.gif",1,255,255,255,0);
+        animhudene[17] = ImgLoader("hud animation/E17.gif",1,255,255,255,0);
+        animhudene[18] = ImgLoader("hud animation/E18.gif",1,255,255,255,0);
+        animhudene[19] = ImgLoader("hud animation/E19.gif",1,255,255,255,0);
+        animhudene[20] = ImgLoader("hud animation/E20.gif",1,255,255,255,0);
+        animhudene[21] = ImgLoader("hud animation/E21.gif",1,255,255,255,0);
+        animhudene[22] = ImgLoader("hud animation/E22.gif",1,255,255,255,0);
+        animhudene[23] = ImgLoader("hud animation/E23.gif",1,255,255,255,0);
+        animhudene[24] = ImgLoader("hud animation/E24.gif",1,255,255,255,0);
+        animhudene[25] = ImgLoader("hud animation/E25.gif",1,255,255,255,0);
+        animhudene[26] = ImgLoader("hud animation/E26.gif",1,255,255,255,0);
+        animhudene[27] = ImgLoader("hud animation/E27.gif",1,255,255,255,0);
+        animhudene[28] = ImgLoader("hud animation/E28.gif",1,255,255,255,0);
+        animhudene[29] = ImgLoader("hud animation/E29.gif",1,255,255,255,0);
+        animhudene[30] = ImgLoader("hud animation/E30.gif",1,255,255,255,0);
+        animhudene[31] = ImgLoader("hud animation/E31.gif",1,255,255,255,0);
+        animhudene[32] = ImgLoader("hud animation/E32.gif",1,255,255,255,0);
+        animhudene[33] = ImgLoader("hud animation/E33.gif",1,255,255,255,0);
+        animhudene[34] = ImgLoader("hud animation/E34.gif",1,255,255,255,0);
+        animhudene[35] = ImgLoader("hud animation/E35.gif",1,255,255,255,0);
+        animhudene[36] = ImgLoader("hud animation/E36.gif",1,255,255,255,0);
+        animhudene[37] = ImgLoader("hud animation/E37.gif",1,255,255,255,0);
+        animhudene[38] = ImgLoader("hud animation/E38.gif",1,255,255,255,0);
+        animhudene[39] = ImgLoader("hud animation/E39.gif",1,255,255,255,0);
+        animhudene[40] = ImgLoader("hud animation/E41.gif",1,255,255,255,0);
+        animhudene[41] = ImgLoader("hud animation/E40.gif",1,255,255,255,0);
+        animatk0[0] = ImgLoader("weapon/atk1.gif",1,255,255,255,0);       
+        animatk0[1] = ImgLoader("weapon/atk2.gif",1,255,255,255,0);       
+        animatk0[2] = ImgLoader("weapon/atk3.gif",1,255,255,255,0);       
+        animatk0[3] = ImgLoader("weapon/atk4.gif",1,255,255,255,0);       
+        animstop[0] = ImgLoader("animation/44.gif",1,255,255,255,0);       
+        animenter[0] = ImgLoader("animation/45.gif",1,255,255,255,0);
+        animenter[1] = ImgLoader("animation/46.gif",1,255,255,255,0);
+        animenter[2] = ImgLoader("animation/47.gif",1,255,255,255,0);
+        animenter[3] = ImgLoader("animation/48.gif",1,255,255,255,0);
+        animenter[4] = ImgLoader("animation/49.gif",1,255,255,255,0);
+        animenter[5] = ImgLoader("animation/50.gif",1,255,255,255,0);
+        animenter[6] = ImgLoader("animation/51.gif",1,255,255,255,0);
+        animenter[7] = ImgLoader("animation/52.gif",1,255,255,255,0);
+        animenter[8] = ImgLoader("animation/53.gif",1,255,255,255,0);
+        animenter[9] = ImgLoader("animation/54.gif",1,255,255,255,0);
+        animenter[10] = ImgLoader("animation/55.gif",1,255,255,255,0);
+        animenter[11] = ImgLoader("animation/56.gif",1,255,255,255,0);
+        animenter[12] = ImgLoader("animation/57.gif",1,255,255,255,0);
+        
+        
+        
+        
+        
+        
+        eng1 = ImgLoader("enigme questions/Enigme1.png",1,255,255,255,0);
+        eng2 = ImgLoader("enigme questions/Enigme2.png",1,255,255,255,0);
+        eng3 = ImgLoader("enigme questions/Enigme3.png",1,255,255,255,0);
+        eng4 = ImgLoader("enigme questions/Enigme4.png",1,255,255,255,0);
+        eng5 = ImgLoader("enigme questions/Enigme5.png",1,255,255,255,0);
+        eng6 = ImgLoader("enigme questions/Enigme6.png",1,255,255,255,0);
+        eng7 = ImgLoader("enigme questions/Enigme7.png",1,255,255,255,0);
+        eng8 = ImgLoader("enigme questions/Enigme8.png",1,255,255,255,0);
+        eng9 = ImgLoader("enigme questions/Enigme9.png",1,255,255,255,0);
+        eng10 = ImgLoader("enigme questions/Enigme10.png",1,255,255,255,0);
+        eng11 = ImgLoader("enigme questions/Enigme11.png",1,255,255,255,0);
+        eng12 = ImgLoader("enigme questions/Enigme12.png",1,255,255,255,0);
+        eng13 = ImgLoader("enigme questions/Enigme13.png",1,255,255,255,0);
+        eng14 = ImgLoader("enigme questions/Enigme14.png",1,255,255,255,0);
+        eng15 = ImgLoader("enigme questions/Enigme15.png",1,255,255,255,0);
+        
+        
+     /*   if(i == 0)
+        {
+		 b[0] = 1;	
+		}*/
+		
+		FPS_Initial( );
+		
+	music=Mix_LoadMUS("5-18 Sunset Hill Zone - Act 1.mp3");
+	Mix_PlayMusic(music, -1);
+	
+	
+        while(running) {
+			    aTick++;
+                start = SDL_GetTicks();
+                SDL_Event event;
+                FPS_Fn();
+                if( aTick%10 == 0 ) pidx++; 
+                if( aTick%20 == 0 ) pidx1++;
+                if( aTick%20 == 0 ) pidx2++;
+                if( aTick%20 == 0 ) pidx3++;
+                
+                if( aTick%20 == 0 ) pidx5++;
+                if( aTick%20 == 0 ) pidx7++;
+                if( aTick%20 == 0 ) pidx8++;
+                if( aTick%20 == 0 ) pidx9++;
+                if( aTick%20 == 0 ) pidx10++;
+                if( aTick%5 == 0 ) pidx12++;
+                if( aTick%10 == 0 ) pidx13++;
+                
+                if(pidx >= justice_No) pidx = 0;
+           else if(pidx1 >= justice_No1) pidx1 = 0;
+           else if(pidx2 >= justice_No2) pidx2 = 0;
+           else if(pidx3 >= justice_No3) pidx3 = 0;
+           
+           else if(pidx5 >= justice_No5) pidx5 = 0;
+           else if(pidx6 >= justice_No6) pidx6 = 0;
+           else if(pidx7 >= justice_No7) pidx7 = 0;
+           else if(pidx8 >= justice_No8) pidx8 = 0;
+           else if(pidx9 >= justice_No9) pidx9 = 0;
+           else if(pidx10 >= justice_No10) pidx10 = 0;
+           else if(pidx11 >= justice_No11) pidx11 = 0;        
+           else if(pidx12 >= justice_No12) pidx12 = 0;	
+           else if(pidx13 >= justice_No13) pidx13 = 0;	
+                while(SDL_PollEvent(&event)) {
+                 switch(event.type) {
+                  case SDL_QUIT:
+                         running = false;
+                   break;
+                       case SDL_KEYDOWN:
+                              switch(event.key.keysym.sym)
+                           {
+                                 case SDLK_RIGHT:
+                                           b[0] = 1;
+                                          break;
+                                 case SDLK_LEFT:
+                                     b[1] = 1;
+                                   break;
+                                 case SDLK_UP:
+                                     b[2] = 1;
+                                 break;
+                                 case SDLK_DOWN:
+                                     b[3] = 1;
+                                 break;
+                                 case SDLK_b:
+                                    running = false;
+                                    u=0;mu=Mix_LoadWAV("Ring stage tranfer.wav");                                            
+                                               break; 
+                                 case SDLK_k:
+                                 enig = 1;
+	                             break; 
+	                            case SDLK_l:
+	                             enig = 0;
+	                             break; 
+	                           case SDLK_e:
+	                             mu2=Mix_LoadWAV("sound change.wav");
+	                             Mix_PlayChannel(-1, mu2, 0); 
+	                             q = blitzscroll(q,screen,weapon,&weap);
+	                             q++;	                                                                                     	                           
+	                             break; 
+	                             case SDLK_t:
+	                             mu3=Mix_LoadWAV("alright_lets_do_this.wav");
+	                             Mix_PlayChannel(-1, mu3, 0);                                          
+                                 break;
+                                 case SDLK_SPACE:
+                                 jump = 1;
+                                 break;
+                                 case SDLK_w:
+	                             z=1;
+	                             break; 
+	                             case SDLK_x:
+	                             z1=1;
+	                             break;
+	                             case SDLK_KP_ENTER:
+	                             continue0 = 1;
+	                             break;
+	                             case SDLK_s:
+	                             z1 = 2;
+	                             break;
+	                             case SDLK_u:
+	                             answer=1;
+	                             break;
+	                             case SDLK_i:
+	                             answer=2;
+	                             break;
+	                             case SDLK_o:
+	                             answer=3;
+	                             break;
+	                             case SDLK_p:
+	                             answer=4;
+	                             break;
+                    }
+                                        break;
+                  case SDL_KEYUP:
+                    switch(event.key.keysym.sym)
+                      {
+                             case SDLK_RIGHT:
+                                          b[0] = 0;
+                                      break;
+                               case SDLK_LEFT:
+                                    b[1] = 0;
+                                         break;                    
+                             case SDLK_UP:
+                                          b[2] = 0;
+                                      break;
+                               case SDLK_DOWN:
+                                    b[3] = 0;
+                                         break;
+                               case SDLK_SPACE:
+                               jump = 0;
+                               break; 
+                               
+                               case SDLK_k:
+                                 enig = 1;
+	                             break; 
+	                             case SDLK_l:
+	                             enig = 0;
+	                             break;   
+	                             case SDLK_w:
+	                             z=0;
+	                            /* if(ut == 1)
+	                             {
+	                              animatk[pidx12] = animatk0[pidx12];
+						imgloc1.x += speed;
+						if(imgloc1.x > imgloc1.x + 640)
+						animatk[pidx12] = NULL;
+						ut=0;
+					             }*/ 
+	                             break; 
+	                             case SDLK_x:
+	                             z1=1;
+	                             break;   
+	                             case SDLK_KP_ENTER:
+	                             continue0 = 0;
+	                             break;    
+	                             case SDLK_s:
+	                             z1 = 2;
+	                             break; 
+	                             case SDLK_u:
+	                             answer=0;
+	                             break;
+	                             case SDLK_i:
+	                             answer=0;
+	                             break;
+	                             case SDLK_o:
+	                             answer=0;
+	                             break;
+	                             case SDLK_p:
+	                             answer=0;
+	                             break;       
+                                        }
+                                        break;
+                        }
+                }
+ 
+                //logic 
+               // imgloc1=imgloc;
+                		    
+                if(imgloc.x == recorig -20)
+                {
+					mu4=Mix_LoadWAV("zerostagecomplete.wav");
+				}                       
+                if(imgloc.x == recorig)
+				{	
+					
+					Mix_HaltMusic();	
+					
+					Mix_PlayChannel(-1, mu4, 0);                                 	
+                    
+                    mu4 = NULL;	
+                    			
+                    SDL_Delay(100);					
+					anim[pidx] = animvictory[pidx6];
+					score = NULL;					
+					u2=2;					
+					animscore[pidx3] = NULL;					
+					animhud[pidx4] = NULL;					
+					scorep = NULL;
+					animhudene[pidx11] = NULL;
+					strcpy(scorech,"");	
+ 
+					//k=1;
+					
+					b[0] = 0;
+					b[1] = 0;
+					b[2] = 0;
+					b[3] = 0;
+																																					
+				}
+				else if(pidx4 == 3)
+				{
+				
+					music=Mix_LoadMUS("13 - HATRED.mp3");
+	                Mix_PlayMusic(music, -1);		                	              
+				
+				}
+				else if(pidx4 > 4)
+				{
+					enemsx-=200;			
+                    SDL_Delay(100);					
+					anim[pidx] = animdefeat[pidx6];
+					score = NULL;					
+					u2=3;					
+					animscore[pidx3] = NULL;					
+					animhud[pidx4] = NULL;					
+					scorep = NULL;
+					animenemyrun[pidx7] = NULL;
+					animhudene[pidx11] = NULL;
+					strcpy(scorech,"");	
+ 
+					//k=1;	
+					b[0] = 0;
+					b[1] = 0;
+					b[2] = 0;
+					b[3] = 0;		
+				}
+				else if((imgloc.x >= recstwatch) && (imgloc.x <= recstwatch + speed))
+				{
+					
+				anim[pidx] = animstop[pidx6];
+				//anim[pidx] = animenter[pidx13];
+				    score = NULL;															
+					animscore[pidx3] = NULL;					
+					animhud[pidx4] = NULL;					
+					scorep = NULL;
+					animenemyrun[pidx7] = NULL;
+					animhudene[pidx11] = NULL;
+					strcpy(scorech,"");	
+					
+				    
+					b[0] = 0;
+					b[1] = 0;	
+											
+				    	
+					
+					if(b[0])
+					{
+						imgloc.x += speed + speed;
+					}
+				/*	else if(b[2])
+					{
+					anim[pidx] = anim1[pidx13];
+					if(pidx3 >= justice_No3)
+					{
+					anim[pidx] = NULL;
+					}	
+					}*/
+						
+				}
+				else if(imgloc.x == engbige)
+				{
+				enig = 2;	
+				}		 	
+                else if(b[0])
+                {
+					    
+					    anim[pidx] = anim1[pidx1];
+                        x += speed;
+                      //  if(x == 20)
+                     //   {
+					    
+						//}
+                        rec.x -= speed;
+                        enem.x -= speed;
+                        camera.x += speed;
+                        imgloc.x += speed + speed;                     
+				        a += speed;
+				        snprintf(scorech, sizeof(scorech), "%d", a);					    
+                        if(z == 1)
+						{
+							imgloc.x +=speed;
+						}
+                        if(camera.x +200 <= imgloc.x)
+                        {
+                        imgloc.x -= speed;
+                        t += speed;  
+                        if(z == 1)
+                        {
+						imgloc.x -= speed;	
+						//rec.x -= speed;
+                     //   enem.x -= speed;
+                       // camera.x += speed;
+						}                                   
+                        }
+                        if((imgloc.x >= recsx) && (imgloc.y >= recsy + recsh) && (imgloc.x <= recsx + recsw) && (u != 2))
+                        {
+						b[0] = 0;	
+						imgloc.x -= speed + speed;
+                        x -= speed;
+                        rec.x += speed;
+                        enem.x += speed;
+                        camera.x -= speed;                                      
+						}
+						if(rec.x <= 0)
+						{
+						rec.x += 800;
+						recsx += 800;
+						u++;
+						}
+						if(u == 2)
+						{
+						obj = IMG_Load("obj.gif");
+						rec.y = 230;
+						u2=1;												 
+						}
+						if((imgloc.x == recsx + 60) && (u2 >= 1))
+						{
+						Mix_PlayChannel(-1, mu, 0);					
+					    background = IMG_Load("backgroundnight-detailed.bmp");					    	
+						obj=NULL;
+						u2=4;
+						}
+						if(u2 == 4)
+						{
+						recsx += 7000;	
+						}
+							
+									
+                     //   if(camera.x >= 2000-640)                             
+                          //      camera.x = 0;
+                          
+                                               //imgloc.x == recs
+								
+                }
+                else if(b[1])
+                {
+					    anim[pidx] = anim2[pidx2]; 
+                        x -= speed;
+                        rec.x += speed;
+                        enem.x += speed;
+                        camera.x -= speed;
+                        imgloc.x -= speed + speed;
+                        if(imgloc.x <= camera.x +10)
+                        {
+						b[1] = 0;					
+                        imgloc.x += speed + speed;
+                        x += speed;
+                        rec.x -= speed;
+                        enem.x -= speed;
+                        camera.x += speed;
+                        }
+                        if((imgloc.x >= recsx + recsw) && (imgloc.y >= recsy + recsh) && (imgloc.x <= recsx + recsw + 10) && (u != 2))
+                        {
+						b[1] = 0;					
+                        imgloc.x += speed + speed;
+                        x += speed;
+                        rec.x -= speed;
+                        enem.x -= speed;
+                        camera.x += speed;	
+						}
+                        
+                      //  if(camera.x <= 0)
+                            //    camera.x = 2000-640;
+                               // imgloc.x = 2000-610; 
+                }
+                else if(b[2])
+                {
+					    anim[pidx] = animjump[pidx5];
+					    y += speed;
+					    imgloc.y -= speed;	
+					    if((imgloc.y < 295) && (z1 != 2)/* && (!jump)*/)
+					    {
+						b[2] = 0;
+						imgloc.y += speed;
+						y -= speed;
+						}
+										
+					    				    	
+				}
+				else if(b[3])
+				{
+					    anim[pidx] = animdown[pidx9];
+					    y -= speed;
+					    imgloc.y += speed;	
+					    if(imgloc.y > 335)
+                        {
+					    b[3] = 0;
+                        imgloc.y -= speed;                      
+                        y += speed;
+                        }
+                        if((imgloc.x >= recsx) && (imgloc.y >= recsy + recsh) && (imgloc.x <= recsx + recsw) && (u != 2))
+                       	{
+                       	b[3] = 0;
+                        imgloc.y -= speed;                      
+                        y += speed;	
+					    }			    								    
+				}
+				else if((b[0] == 0) && (b[1] == 0))
+				{
+					anim[pidx] = anim0[pidx];
+				}
+				
+		/*		enemori=enemsx;
+				enemyx=enemsx;
+				
+					
+				
+					if(enemyx > enemori +150)
+					{
+					u3=2;	
+					}
+					else if(enemyx < enemori -150)
+					{
+					u3=1;	
+					}
+						
+					
+				if(u3 == 1)
+				{
+				while(enemyx <= enemori +150)
+				{
+				animenemyrun[pidx7] = animenemyrun1[pidx7];
+					enem.x += speed;
+					enemyx += speed;					
+				}	
+				}
+				else if(u3 == 2)
+				{
+				while(enemyx >= enemori -150)
+					{
+					animenemyrun[pidx7] = animenemyrun2[pidx8];
+	                enem.x -= speed;
+				    enemyx -= speed;					
+				    }
+				}*/
+				
+				
+				if((imgloc.x >= enemsx) && (imgloc.x <= enemsx + enemsw))				
+                        {
+						//animenemyrun[pidx7] = NULL;
+						anim[pidx] = animdamage[pidx10];
+						
+						if( aTick%20 == 0 ){ pidx4++;
+					    if(pidx4 >= justice_No4) pidx4=0;}
+						}
+				else if((imgloc.x < enemsx) && (imgloc.x > enemsx + enemsw))
+				{
+					
+	        	if( aTick%20 == 0 ){ pidx4++;
+	            if(pidx4 >= justice_No4) pidx4=0;}
+				}
+				
+			//	if(ue == 1){
+			//	if( aTick%10 == 0 ) pidx11++;
+			//    else if(pidx11 >= 40/*40 - 1*/) {
+			  //  animaura[pidx3] = NULL;
+	          //                   ue=0;}}
+
+			animatk[pidx12] = animatk0[pidx12];
+			
+			if(z1 == 0)
+			{
+			animatk[pidx12] = NULL;
+			imgloc1.x = imgloc.x;	
+			}
+			else if(z1 == 1)
+			{	
+			animatk[pidx12] = animatk0[pidx12];
+				 		
+			if( aTick%2 == 0 ) imgloc1.x += speed;
+		    else if( imgloc1.x == imgloc.x + 200) 
+		    z1=0;
+			}
+			
+			if(continue0 == 1)
+				    {
+					recstwatch -= 200;   
+				    }
+		    else if((imgloc.x == recstwatch) && (z1 == 2))
+						{
+						imgloc.y = 300;
+						anim[pidx] = animenter[pidx13];
+						if( aTick%10 == 0 )
+						{
+						imgloc.y -= 30;
+						}
+						if(pidx13 >= justice_No13)
+						{
+						anim[pidx] = NULL;	
+						}	
+						}
+		     if((answer == 1) && (imgloc.x == engbige))
+				{
+				imgloc.x += speed;
+				SDL_FreeSurface(eng1);
+				mu6 = Mix_LoadWAV("Correct-answer.wav");
+			    Mix_PlayChannel(-1, mu6, 0);
+				
+			    }
+			 else if(((answer == 2) || (answer == 3) || (answer == 4)) && (imgloc.x == engbige))	        
+			 {
+				mu7 = Mix_LoadWAV("Wrong-answer-sound-effect.wav");
+			    Mix_PlayChannel(-1, mu7, 0);
+			 }
+							
+			
+			
+				
+			//	while(ut == 1)
+				//{
+			//		animatk[pidx12]=animatk0[pidx12];
+			//	}
+					   
+				
+				 
+				
+			/*	
+				
+				ground=1;
+				if(ground)
+				{
+					jump=0;
+				}
+				
+				if(imgloc.y > 295)
+				{
+					altitude=imgloc.y;jump=0;
+				}
+				else if(imgloc.y < 295)
+				{
+					ground=0;
+				}
+				while((j == 1) && (imgloc.y <= 395) && (acceleration <= 30))
+				{
+			    acceleration =speed;
+				imgloc.y -=acceleration;
+				if(imgloc.y < 395)
+				{
+					j=0;
+					acceleration =0;
+				do
+				{	
+				    imgloc.y +=speed;
+				    
+				}while(imgloc.y != altitude);
+				}	
+				}
+				if(jump)
+				{
+					while(imgloc.y >= 195){
+				acceleration +=speed;
+				imgloc.y -=acceleration;	
+			}
+				}
+				if(imgloc.y < 195)
+				{
+					do
+					{
+						imgloc.y +=speed;
+					}while(imgloc.y < altitude);
+				}*/
+				
+				
+			    
+			    
+ 
+                SDL_Rect location = {x,y,640,480};
+                SDL_Rect relcoord = {imgloc.x-x, imgloc.y-y};
+                          //     std::cout << imgloc.x << std::endl;
+                        //       std::cout << imgloc1.x << std::endl;
+                               //std::cout << rec.x << std::endl;
+                              // std::cout << imgloc.y << std::endl;
+                               //std::cout << t << std::endl;                              
+                              // std::cout << recorig << std::endl;                              
+                               
+                //render
+                texte=TTF_RenderText_Blended(police,scorech,couleurnoir);
+                     positiontext.x = 50;
+                     positiontext.y = 80;
+                     if(a >= 200){
+					 texte=TTF_RenderText_Blended(police,scorech,couleurrouge);
+					 if(a == 200){
+					 mu5 = Mix_LoadWAV("lvl1.wav");		 	              
+			         Mix_PlayChannel(-1, mu5 ,0); }}
+			         
+                SDL_BlitSurface(background,&camera,screen,NULL);
+                if(collision(&location, &imgloc))
+         //       SDL_BlitSurface(animaura[pidx3],NULL,screen,&relcoord); 
+
+                SDL_BlitSurface(anim[pidx],NULL,screen,&relcoord);
+                           
+                SDL_BlitSurface(obj,NULL,screen,&rec);
+                                 
+                SDL_BlitSurface(scorep,NULL,screen,&fire); 
+                 
+                SDL_BlitSurface(animscore[pidx3],NULL,screen,&fire); 
+                                    
+                SDL_BlitSurface(score,NULL,screen,&scorer);                             
+			                	            
+	            SDL_BlitSurface(animhud[pidx4],NULL,screen,&huds);  
+			               
+			    SDL_BlitSurface(animhudene[pidx11],NULL,screen,&huds);
+			    			   
+			    SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+			    
+			    SDL_BlitSurface(animenemyrun[pidx7],NULL,screen,&enem);  
+               
+                if(enig == 1)
+				{
+				SDL_BlitSurface(enigme2,NULL,screen,&recenig); 
+			               				                                                  
+                 SDL_Flip(screen);	
+				}
+				else if(enig == 2)
+				{
+				SDL_BlitSurface(eng1,NULL,screen,&recenig); 
+			               				                                                  
+                 SDL_Flip(screen);	
+				} 
+                
+                      
+                      /*SDL_Flip(screen);*/SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);
+			         			
+			    if(z1 == 1)
+                { 
+                SDL_BlitSurface(animatk[pidx12],NULL,screen,&imgloc1); 
+			               				                                                  
+                 SDL_Flip(screen);
+                      
+                }
+			    else if(u2 == 2)
+			    {
+					texte=TTF_RenderText_Blended(police,"YOU WIN",couleurnoir);
+                     positiontext.x = 170;
+                     positiontext.y = 90;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);
+				}
+				else if(u2 == 3)
+				{
+				texte=TTF_RenderText_Blended(police,"GAME OVER",couleurrouge);
+                     positiontext.x = 190;
+                     positiontext.y = 90;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);	
+				}
+				    			
+			         			         			
+             /*   if((x == rec.x) && (u == 0))
+				{
+										
+					Mix_PlayChannel(-1, mu, 0);					
+					//background = IMG_Load("map1-5.bmp");																		
+					//obj = IMG_Load("obj1.gif");
+					rec.x += 100; 
+					u=1;
+					//if( (x == rec.x) && (u == 1) )
+					//{					
+					background = IMG_Load("backgroundnight.bmp");	
+		          //  u=2;		
+				//	}	
+					mu = NULL;		
+					
+		
+				}*/
+				
+
+ 
+                              SDL_Flip(screen);
+                if(1000/FPS > SDL_GetTicks()-start) {
+                        SDL_Delay(1000/FPS-(SDL_GetTicks()-start));
+                }
+        }                                           
+		}  c=1;
+		music=Mix_LoadMUS("21 Building Recon - Intro - Showdown.mp3");
+	Mix_PlayMusic(music, -1);
+		   }
+               break;
+               
+                case SDLK_DOWN:  
+			d++;
+		    
+		   switch(d)
+		   {
+			   case 1:tmp=IMG_Load("./assets/images/MENU10.png"); c=1;
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0); 
+			   break;
+			   case 2:tmp=IMG_Load("./assets/images/MENU12.png"); c=2;
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0);
+			   break;
+			   case 3:tmp=IMG_Load("./assets/images/MENU13.png"); c=3;
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0);
+			   break;
+			   case 4:tmp=IMG_Load("./assets/images/MENU14.png"); c=4;
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0);
+			   break;
+			   case 5:tmp=IMG_Load("./assets/images/MENU8.png"); c=5;
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	                  Mix_PlayChannel(-1, Beeps1, 0);
+	                  
+			   break;
+		   }
+		   if((d < 0) || (d > 5))
+		   {
+			   d=0;
+		   }
+		   break;
+		   case SDLK_UP:  
+			d++;
+		    
+		   switch(d)
+		   {
+			   case 1:tmp=IMG_Load("./assets/images/MENU8.png");
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	 c=5;
+			   break;
+			   case 2:tmp=IMG_Load("./assets/images/MENU14.png");
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	 c=4;
+			   break;
+			   case 3:tmp=IMG_Load("./assets/images/MENU13.png");
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	 c=3;
+			   break;
+			   case 4:tmp=IMG_Load("./assets/images/MENU12.png");
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	 c=2;
+			   break;
+			   case 5:tmp=IMG_Load("./assets/images/MENU10.png");
+	                  menu=SDL_DisplayFormatAlpha(tmp);
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	 c=1;
+			   break;
+		   }
+		   if((d < 0) || (d > 5))
+		   {
+			   d=0;
+		   }
+		   break;
+		   case SDLK_LEFT:
+		   if(c == 6)
+		   {
+			 tmp=IMG_Load("./assets/images/MENU16.png");
+	                  menu=SDL_DisplayFormatAlpha(tmp); 
+	                  
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	 
+		   }
+		   break;
+		   case SDLK_RIGHT:
+		   if(c == 6)
+		   {
+			   tmp=IMG_Load("./assets/images/MENU17.png");
+	                  menu=SDL_DisplayFormatAlpha(tmp); 
+	                  
+	                  Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	
+		   }
+		   break;
+		   case SDLK_RETURN:
+		   if(c == 6)
+		   {
+	                   running=0;
+	        }
+	                   break;
+	                  
+		   
+/*		   case SDLK_a:
+		   e=2;
+		   break;
+		   case SDLK_u:
+		   e=0;
+		   break;*/
+		   
+		   }
+	       }
+	   else  if(event.type == SDL_MOUSEBUTTONDOWN)  
+	   {
+		   switch(event.button.button)
+		   {
+			case SDL_BUTTON_LEFT:
+			if(c == 5)
+               {
+		       tmp=IMG_Load("./assets/images/MENU7.png");
+		
+	           menu=SDL_DisplayFormatAlpha(tmp);
+	           
+	           Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	
+	           
+	           c++;
+			   }
+			   else if(c == 4)
+			   {
+			   tmp=IMG_Load("./assets/images/logo_size_fixed.png");
+		
+	           menu=SDL_DisplayFormatAlpha(tmp);
+	           
+	           Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);	
+			   }
+			   else if(c == 3)
+			   {
+			   tmp=IMG_Load("./assets/images/MENU15.png");
+				
+	           menu=SDL_DisplayFormatAlpha(tmp);	
+	           
+	           Beeps1 = Mix_LoadWAV("button1.wav");
+	           Mix_PlayChannel(-1, Beeps1, 0);																																									
+		       }
+		       else if(c == 1)
+		       {
+				   c = 8;
+				   if(c == 8){
+	            SDL_Surface *screen, *background, *score, *scorep, *obj, *hud, *weapon;
+        screen = SDL_SetVideoMode(width, height, 32, SDL_SWSURFACE);
+//      screen = SDL_SetVideoMode(640, 480, 32, SDL_SWSURFACE|SDL_FULLSCREEN);
+        bool running=true;
+        const int FPS = 30;
+        Uint32 start;
+        const int speed = 5;
+        int x,y;
+        x = 0;
+        y = 0;
+        int u=0;
+        int i;
+        i = 0;
+        char scorech[6];
+	    int a=0;
+	    int t=0;
+	    int k=0;
+	    int q=0;
+        background = SDL_LoadBMP("backgroundbig.bmp");
+        score = IMG_Load("money.png");
+        obj = IMG_Load("ground obstacle.png");
+        scorep = IMG_Load("x.png");
+        hud = IMG_Load("score.png");
+        weapon = IMG_Load("weapon menu/vide.png");
+        SDL_Rect imgloc;
+        imgloc.x =30;
+        imgloc.y =335;
+        imgloc.w =73;
+        imgloc.h =85;
+        SDL_Rect camera;
+        camera.x = 0;
+        camera.y = 0;
+        camera.w = 640;
+        camera.h = 480;
+        bool b[4] = {0,0,0,0};
+        SDL_Rect rec;
+        rec.x =820;
+        rec.y =300;
+        rec.w =34;
+        rec.h =35;
+        SDL_Rect huds;
+        huds.x = 350;
+        huds.y = -20;
+        huds.w = 0;
+        huds.h = 0;
+        SDL_Rect scorer;
+        scorer.x = 10;
+        scorer.y = 20;
+        scorer.w = 0;
+        scorer.h = 0;
+        SDL_Rect fire;
+        fire.x = 70;
+        fire.y = -80;
+        fire.w = 0;
+        fire.h = 0;
+        int recorig=3100;//rec.x + imgloc.x;
+        SDL_Rect weap;
+        weap.x = 380;
+        weap.y = 280;
+        weap.w = 0;
+        weap.h = 0;
+        int recsx= 800;
+        int recsy= 270;
+        int recsw= 38;
+        int recsh= 35;
+        SDL_Rect rect1;
+        rect1.x =30;
+        rect1.y =335;
+        rect1.w =73;
+        rect1.h =85;      
+        SDL_Rect rect2; 
+        rect2.x = 820;
+        rect2.y = 280;
+        rect2.w = 34;
+        rect2.h = 35;
+        
+        
+        
+                
+                
+                                   
+        SDL_Event event;
+        bool bRun = 1;
+        int pidx = 0 ,pidx1 = 0 ,pidx2 = 0 ,pidx3 = 0 ,pidx4 = 0 ,pidx5 = 0 ,pidx6 = 0, aTick = 0;
+        enum stand { justice1 , justice2 , justice3 , justice4 
+        , justice5 , justice_No  };
+        enum walk { justice6 , justice7 , justice8 , justice9 
+        , justice10 , justice11 , justice12 , justice13 , justice_No1  };
+        enum stop { justice14 , justice15 , justice16 
+        , justice17 , justice18 , justice_No2  };      
+        enum score { justice39 , justice40 , justice41 
+        , justice42 , justice_No3  };      
+        enum hud { justice19 , justice20 , justice21
+        , justice22 , justice23 , justice24 , justice25 , justice26 , justice27 , justice28 , justice29 , justice30 , justice31 , justice_No4  };
+        enum jump { justice33 , justice34 , justice35 
+        , justice36 , justice37 , justice38 , justice_No5  };
+        enum victory { justice43 , justice_No6  };
+        SDL_Surface *anim[justice_No], *anim0[justice_No], *anim1[justice_No1], *anim2[justice_No2], *animscore[justice_No3], *animhud[justice_No4], *animjump[justice_No5], *animvictory[justice_No6];
+        SDL_Rect animRect ;
+        animRect.x = 160 ;
+        animRect.y = 0 ;
+        
+        anim[pidx]=anim0[pidx];
+        
+        anim0[0] = ImgLoader("animation/1.gif",1,255,255,255,0);
+        anim0[1] = ImgLoader("animation/2.gif",1,255,255,255,0);
+        anim0[2] = ImgLoader("animation/3.gif",1,255,255,255,0);
+        anim0[3] = ImgLoader("animation/4.gif",1,255,255,255,0);
+        anim0[4] = ImgLoader("animation/5.gif",1,255,255,255,0);
+        anim1[0] = ImgLoader("animation/6.gif",1,255,255,255,0);
+        anim1[1] = ImgLoader("animation/7.gif",1,255,255,255,0);
+        anim1[2] = ImgLoader("animation/8.gif",1,255,255,255,0);
+        anim1[3] = ImgLoader("animation/9.gif",1,255,255,255,0);
+        anim1[4] = ImgLoader("animation/10.gif",1,255,255,255,0);
+        anim1[5] = ImgLoader("animation/11.gif",1,255,255,255,0);
+        anim1[6] = ImgLoader("animation/12.gif",1,255,255,255,0);
+        anim1[7] = ImgLoader("animation/13.gif",1,255,255,255,0);
+        anim2[0] = ImgLoader("animation/14.gif",1,255,255,255,0);
+        anim2[1] = ImgLoader("animation/15.gif",1,255,255,255,0);
+        anim2[2] = ImgLoader("animation/16.gif",1,255,255,255,0);
+        anim2[3] = ImgLoader("animation/17.gif",1,255,255,255,0);
+        anim2[4] = ImgLoader("animation/18.gif",1,255,255,255,0);
+        animscore[0] = ImgLoader("animscore/1.gif",1,255,255,255,0);
+        animscore[1] = ImgLoader("animscore/2.gif",1,255,255,255,0);
+        animscore[2] = ImgLoader("animscore/3.gif",1,255,255,255,0);
+        animscore[3] = ImgLoader("animscore/4.gif",1,255,255,255,0);       
+        animhud[0] = ImgLoader("hud animation/1.gif",1,255,255,255,0);
+        animhud[1] = ImgLoader("hud animation/2.gif",1,255,255,255,0);
+        animhud[2] = ImgLoader("hud animation/3.gif",1,255,255,255,0);
+        animhud[3] = ImgLoader("hud animation/4.gif",1,255,255,255,0);
+        animhud[4] = ImgLoader("hud animation/5.gif",1,255,255,255,0);
+        animhud[5] = ImgLoader("hud animation/6.gif",1,255,255,255,0);
+        animhud[6] = ImgLoader("hud animation/7.gif",1,255,255,255,0);
+        animhud[7] = ImgLoader("hud animation/8.gif",1,255,255,255,0);
+        animhud[8] = ImgLoader("hud animation/9.gif",1,255,255,255,0);
+        animhud[9] = ImgLoader("hud animation/10.gif",1,255,255,255,0);
+        animhud[10] = ImgLoader("hud animation/11.gif",1,255,255,255,0);
+        animhud[11] = ImgLoader("hud animation/12.gif",1,255,255,255,0);
+        animhud[12] = ImgLoader("hud animation/13.gif",1,255,255,255,0);
+        animjump[0] = ImgLoader("animation/20.gif",1,255,255,255,0);
+        animjump[1] = ImgLoader("animation/21.gif",1,255,255,255,0);
+        animjump[2] = ImgLoader("animation/22.gif",1,255,255,255,0);
+        animjump[3] = ImgLoader("animation/23.gif",1,255,255,255,0);
+        animjump[4] = ImgLoader("animation/24.gif",1,255,255,255,0);
+        animjump[5] = ImgLoader("animation/25.gif",1,255,255,255,0);
+        animvictory[0] = ImgLoader("animation/0.gif",1,255,255,255,0);
+
+
+        
+     /*   if(i == 0)
+        {
+		 b[0] = 1;	
+		}*/
+		
+		FPS_Initial( );
+		
+	music=Mix_LoadMUS("5-18 Sunset Hill Zone - Act 1.mp3");
+	Mix_PlayMusic(music, -1);
+	
+        while(running) {
+			    aTick++;
+                start = SDL_GetTicks();
+                SDL_Event event;
+                FPS_Fn();
+                if( aTick%10 == 0 ) pidx++; 
+                if( aTick%20 == 0 ) pidx1++;
+                if( aTick%20 == 0 ) pidx2++;
+                if( aTick%20 == 0 ) pidx3++;
+                if( aTick%20 == 0 ) pidx4++;
+                if( aTick%20 == 0 ) pidx5++;
+                if(pidx >= justice_No) pidx = 0;
+           else if(pidx1 >= justice_No1) pidx1 = 0;
+           else if(pidx2 >= justice_No2) pidx2 = 0;
+           else if(pidx3 >= justice_No3) pidx3 = 0;
+           else if(pidx4 >= justice_No4) pidx4 = 0;
+           else if(pidx5 >= justice_No5) pidx5 = 0;
+           else if(pidx6 >= justice_No6) pidx6 = 0;
+                while(SDL_PollEvent(&event)) {
+                 switch(event.type) {
+                  case SDL_QUIT:
+                         running = false;
+                   break;
+                       case SDL_KEYDOWN:
+                              switch(event.key.keysym.sym)
+                           {
+                                 case SDLK_RIGHT:
+                                           b[0] = 1;
+                                          break;
+                                 case SDLK_LEFT:
+                                     b[1] = 1;
+                                   break;
+                                 case SDLK_UP:
+                                     b[2] = 1;
+                                 break;
+                                 case SDLK_DOWN:
+                                     b[3] = 1;
+                                 break;
+                                 case SDLK_b:
+                                    running = false;
+                                    u=0;mu=Mix_LoadWAV("Ring stage tranfer.wav");                                            
+                                               break; 
+                                 case SDLK_k:
+                                 music=Mix_LoadMUS("fin.mp3");
+	                             Mix_PlayMusic(music, -1);
+	                             break;  
+	                             case SDLK_e:
+	                             mu=Mix_LoadWAV("sound change.wav");
+	                             Mix_PlayChannel(-1, mu, 0); 
+	                             q = blitzscroll(q,screen,weapon,&weap);
+	                             q++;	                                                                                     	                           
+	                             break;                                           
+                    }
+                                        break;
+                  case SDL_KEYUP:
+                    switch(event.key.keysym.sym)
+                      {
+                             case SDLK_RIGHT:
+                                          b[0] = 0;
+                                      break;
+                               case SDLK_LEFT:
+                                    b[1] = 0;
+                                         break;                    
+                             case SDLK_UP:
+                                          b[2] = 0;
+                                      break;
+                               case SDLK_DOWN:
+                                    b[3] = 0;
+                                         break;                    
+                                        }
+                                        break;
+                        }
+                }
+ 
+                //logic     
+                if(imgloc.x == recorig -20)
+                {
+					mu=Mix_LoadWAV("zerostagecomplete.wav");
+				}                       
+                if(imgloc.x == recorig)
+				{	
+					
+					Mix_HaltMusic();	
+					
+					Mix_PlayChannel(-1, mu, 0);                                 	
+                    
+                    mu = NULL;	
+                    			
+                    SDL_Delay(100);					
+					anim[pidx] = animvictory[pidx6];
+					score = NULL;					
+					u=4;					
+					animscore[pidx3] = NULL;					
+					animhud[pidx4] = NULL;					
+					scorep = NULL;
+					strcpy(scorech,"");	
+ 
+					//k=1;	
+					b[0] = 0;
+					b[1] = 0;
+					b[2] = 0;
+					b[3] = 0;	
+					
+																																					
+				}
+				
+			/*	if(k == 1)
+				{
+					music=Mix_LoadMUS("fin.mp3");
+	                Mix_PlayMusic(music, -1);	                	              
+				}*/
+				
+                else if(b[0])
+                {
+					    
+					    anim[pidx] = anim1[pidx1];
+                        x += speed;
+                        rec.x -= speed;
+                        camera.x += speed;
+                        imgloc.x += speed + speed;                     
+				        a += speed;
+				        snprintf(scorech, sizeof(scorech), "%d", a);					    
+                        if(camera.x +200 <= imgloc.x)
+                        {
+                        imgloc.x -= speed;
+                        t += speed;                                     
+                        }
+                        if((imgloc.x >= recsx) && (imgloc.y >= recsy + recsh) && (imgloc.x <= recsx + recsw) && (u != 2))
+                        {
+						b[0] = 0;	
+						imgloc.x -= speed + speed;
+                        x -= speed;
+                        rec.x += speed;
+                        camera.x -= speed;                                      
+						}
+						if(rec.x <= 0)
+						{
+						rec.x += 800;
+						recsx += 800;
+						u++;
+						}
+						if(u == 2)
+						{
+						obj = IMG_Load("obj.gif");
+						rec.y = 230;
+						if(imgloc.x == recsx + 60)
+						{
+						Mix_PlayChannel(-1, mu, 0);					
+					    background = IMG_Load("backgroundnightbig.bmp");					    	
+						obj=NULL;
+						}
+						 
+						}
+                        
+                     //   if(camera.x >= 2000-640)                             
+                          //      camera.x = 0;
+                          
+                                               //imgloc.x == recs
+								
+                }
+                else if(b[1])
+                {
+					    anim[pidx] = anim2[pidx2]; 
+                        x -= speed;
+                        rec.x += speed;
+                        camera.x -= speed;
+                        imgloc.x -= speed + speed;
+                        if(imgloc.x <= camera.x +10)
+                        {
+						b[1] = 0;					
+                        imgloc.x += speed + speed;
+                        x += speed;
+                        rec.x -= speed;
+                        camera.x += speed;
+                        }
+                        if((imgloc.x >= recsx + recsw) && (imgloc.y >= recsy + recsh) && (imgloc.x <= recsx + recsw + 10) && (u != 2))
+                        {
+						b[1] = 0;					
+                        imgloc.x += speed + speed;
+                        x += speed;
+                        rec.x -= speed;
+                        camera.x += speed;	
+						}
+                        
+                      //  if(camera.x <= 0)
+                            //    camera.x = 2000-640;
+                               // imgloc.x = 2000-610; 
+                }
+                else if(b[2])
+                {
+					    anim[pidx] = animjump[pidx5];
+					    y += speed;
+					    imgloc.y -= speed;	
+					    if(imgloc.y < 295)
+					    {
+						b[2] = 0;
+						imgloc.y += speed;
+						y -= speed;
+						}
+						
+					    				    	
+				}
+				else if(b[3])
+				{
+					    y -= speed;
+					    imgloc.y += speed;	
+					    if(imgloc.y > 335)
+                        {
+					    b[3] = 0;
+                        imgloc.y -= speed;                      
+                        y += speed;
+                        }
+                        if((imgloc.x >= recsx) && (imgloc.y >= recsy + recsh) && (imgloc.x <= recsx + recsw) && (u != 2))
+                       	{
+                       	b[3] = 0;
+                        imgloc.y -= speed;                      
+                        y += speed;	
+					    }			    								    
+				}
+				else if((b[0] == 0) && (b[1] == 0))
+				{
+					anim[pidx] = anim0[pidx];
+				}
+							  
+				
+				
+				
+			    
+			    
+ 
+                SDL_Rect location = {x,y,640,480};
+                SDL_Rect relcoord = {imgloc.x-x, imgloc.y-y};
+                             //  std::cout << imgloc.x << std::endl;
+                             //  std::cout << rec.x << std::endl;
+                              // std::cout << imgloc.y << std::endl;
+                               //std::cout << t << std::endl;                              
+                              // std::cout << recorig << std::endl;                              
+                               
+                //render
+                texte=TTF_RenderText_Blended(police1,scorech,couleurnoir);
+                     positiontext.x = 50;
+                     positiontext.y = 80;
+                SDL_BlitSurface(background,&camera,screen,NULL);
+                if(collision(&location, &imgloc))
+                SDL_BlitSurface(anim[pidx],NULL,screen,&relcoord);
+                           
+                SDL_BlitSurface(obj,NULL,screen,&rec);
+                                 
+                SDL_BlitSurface(scorep,NULL,screen,&fire); 
+                 
+                SDL_BlitSurface(animscore[pidx3],NULL,screen,&fire); 
+                                    
+                SDL_BlitSurface(score,NULL,screen,&scorer);                             
+			                
+	            SDL_BlitSurface(animhud[pidx4],NULL,screen,&huds);  
+			               
+			    SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+			    
+                      SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);SDL_Flip(screen);
+			         			
+			    if( u == 4)
+			    {
+					texte=TTF_RenderText_Blended(police,"YOU WIN",couleurnoir);
+                     positiontext.x = 170;
+                     positiontext.y = 90;
+                     SDL_BlitSurface(texte , NULL, screen ,&positiontext);
+                     SDL_Flip(screen);
+				}     			
+			         			         			
+             /*   if((x == rec.x) && (u == 0))
+				{
+										
+					Mix_PlayChannel(-1, mu, 0);					
+					//background = IMG_Load("map1-5.bmp");																		
+					//obj = IMG_Load("obj1.gif");
+					rec.x += 100; 
+					u=1;
+					//if( (x == rec.x) && (u == 1) )
+					//{					
+					background = IMG_Load("backgroundnight.bmp");	
+		          //  u=2;		
+				//	}	
+					mu = NULL;		
+					
+		
+				}*/
+				
+
+ 
+                              SDL_Flip(screen);
+                if(1000/FPS > SDL_GetTicks()-start) {
+                        SDL_Delay(1000/FPS-(SDL_GetTicks()-start));
+                }
+        } 
+		}    c=1;
+		music=Mix_LoadMUS("21 Building Recon - Intro - Showdown.mp3");
+	Mix_PlayMusic(music, -1);
+			   }
+			break;
+		   }
+	   }    
+	         
+	   if (event.key.keysym.sym==SDLK_ESCAPE)
+		   {
+			   running=0;
+		   }
+		   
+	}
+	
+	
+	
+/*			if(e == 1)
+		{
+			tmp=IMG_Load("./assets/images/MENU6.png");
+				menu=SDL_DisplayFormatAlpha(tmp);
+
+		}
+		else if(e == 0)
+		{
+		 tmp=IMG_Load("./assets/images/MENU15.png");
+		 	menu=SDL_DisplayFormatAlpha(tmp);
+
+		}
+	
+	switch(e)
+	{
+		case 0: SDL_Delay(10000);
+		        e++;
+		break;
+		case 1: SDL_Delay(2000);
+		        e--;
+		break;
+	}*/
+	
+	
+	
+	
+	if(dt > periodeFps)
+	 {
+		/* delta_s=dt/1000.0;
+		 
+		printf("delta= %.4f \n",delta_s);*/
+		
+	   SDL_PollEvent(& event);
+	   
+	   switch(event.type)
+	   {
+		   //
+		   case SDL_QUIT:
+		   running=0;
+		   break;
+		   
+		   //
+		  
+		   //
+	/*	   case SDL_KEYUP:
+		   if(event.key.keysym.sym==SDLK_UP)
+		   {
+			tmp=IMG_Load("./assets/images/MENU6.png");
+		
+	menu=SDL_DisplayFormatAlpha(tmp);   
+		   }
+		   break;*/
+		   
+		   default:
+		   break;
+		   
+	
+         }
+
+	SDL_FillRect(screen,NULL,color1); 
+
+    SDL_BlitSurface(menu,NULL,screen,& menu_rect);
+
+
+
+	SDL_Flip(screen);
+	//
+	ex=now;
+	
+      }
+    else
+    {
+		SDL_Delay(periodeFps - dt);
+	}
+
+  }
+  //
+  SDL_FreeSurface(menu);
+  SDL_FreeSurface(chaos);
+  //Mix_FreeChunk(Beeps1);
+  //Mix_FreeChunk(mu);
+  //Mix_FreeChunk(mu1);
+  Mix_FreeMusic(music);
+  TTF_CloseFont(police);
+  TTF_CloseFont(police1);
+  TTF_CloseFont(policeBIG);
+  SDL_FreeSurface(texte);
+  
+  music = NULL;
+  Beeps1 = NULL;
+  
+	//quit
+	
+	Mix_Quit();
+	IMG_Quit();
+	SDL_Quit(); //sup screen
+	
+   return EXIT_SUCCESS;
+}
